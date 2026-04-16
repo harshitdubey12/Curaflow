@@ -1,0 +1,14 @@
+node_modules
+.env
+.env.local
+backend/.env
+frontend/.env.local
+backend/prisma/dev.db
+backend/prisma/dev.db-journal
+.next
+dist
+*.log
+.DS_Store
+test-results
+playwright-report
+playwright/.cache

@@ -1,0 +1,18 @@
+# Optional: local PostgreSQL if you prefer it over SQLite.
+# Default setup uses SQLite (file:./dev.db) and does not need Docker.
+# If you use this, change prisma/schema.prisma provider to postgresql and point DATABASE_URL here.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: clinic
+      POSTGRES_PASSWORD: clinic_dev_pass
+      POSTGRES_DB: clinic_queue
+    ports:
+      - "5432:5432"
+    volumes:
+      - curaflow_pgdata:/var/lib/postgresql/data
+
+volumes:
+  curaflow_pgdata:

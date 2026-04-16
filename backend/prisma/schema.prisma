@@ -1,0 +1,116 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum QueueStatus {
+  WAITING
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED
+  CANCELLED
+}
+
+model Patient {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String   @unique
+  symptoms  String?
+  /// WhatsApp / SMS locale: "en" or "hi"
+  language  String   @default("en")
+  /// general | dental | skin (AI or manual)
+  department String  @default("general")
+  createdAt DateTime @default(now())
+
+  queueEntries Queue[]
+  visits       Visit[]
+}
+
+model Queue {
+  id              String      @id @default(cuid())
+  tokenNumber     Int         @unique
+  status          QueueStatus @default(WAITING)
+  patientId       String
+  patient         Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId        String
+  doctor          Doctor      @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  /// 0 normal, 1 follow-up, 2 VIP, 3 emergency. Higher serves first.
+  priority        Int         @default(0)
+  /// "walkin" or "appointment"
+  type            String      @default("walkin")
+  appointmentTime DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  /// Smart notifications: first "your turn is coming soon" style ping.
+  lastNotifiedAt  DateTime?
+  /// Last inbound WhatsApp reply while this row is active (WAITING or IN_PROGRESS).
+  lastResponseAt  DateTime?
+  notified        Boolean     @default(false)
+  /// When this row became IN_PROGRESS (for no-show timeout from summon, not from generic row edits).
+  summonedAt      DateTime?
+  /// general | dental | skin (matches Patient.department at enqueue)
+  department      String   @default("general")
+  /// Set when this WAITING row received a "doctor is delayed" WhatsApp; cleared when the desk advances/skips so the next session can ping again.
+  doctorDelayPingAt DateTime?
+
+  @@index([doctorId, status])
+}
+
+model Doctor {
+  id                    String    @id @default(cuid())
+  name                  String
+  specialization        String?
+  /// Last time a "doctor is delayed" WhatsApp was sent (shared across instances).
+  lastDelayBroadcastAt  DateTime?
+  queues                Queue[]
+  visits                Visit[]
+}
+
+model Visit {
+  id                  String    @id @default(cuid())
+  patientId           String
+  patient             Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  /// Queue doctor for this visit episode (smart wait stats per room). Optional for legacy rows.
+  doctorId            String?
+  doctor              Doctor?   @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+  status              String
+  createdAt           DateTime  @default(now())
+  /// Consultation start (when patient token is called / IN_PROGRESS).
+  startTime           DateTime?
+  /// Consultation end (when queue row completes).
+  endTime             DateTime?
+  /// Wait from queue join to completion, in whole minutes (set when visit closes).
+  waitTime            Int?
+  followUpSent        Boolean   @default(false)
+  followUpLastAttemptAt DateTime?
+  /// Manual payment tracking (no gateway): pending | paid
+  paymentStatus       String    @default("pending")
+  /// Consultation amount in clinic currency (optional until marked paid)
+  amount              Float?
+  /// Symptoms snapshot for this visit episode (registration time)
+  symptoms            String?
+
+  @@index([doctorId])
+}
+
+/// Single-row lease so only one process runs clinic interval jobs when sharing one database.
+model JobLease {
+  id          String   @id
+  leaseUntil  DateTime
+  leaseHolder String
+}
+
+/// Reserved for future multi-step WhatsApp onboarding (not wired in the API yet).
+model WhatsAppOnboardingSession {
+  id              String   @id @default(cuid())
+  phone           String   @unique
+  state           String   @default("START")
+  draftName       String?
+  draftSymptoms   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
