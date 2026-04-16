@@ -20,7 +20,7 @@
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium",
     "test:e2e:chrome": "PLAYWRIGHT_USE_SYSTEM_CHROME=1 playwright test",
-    "postinstall": "npm run prisma:generate --workspace=backend"
+    "postinstall": "node -e \"const v=process.env.VERCEL; if(v==='1'||String(v).toLowerCase()==='true')process.exit(0); require('child_process').execSync('npm run prisma:generate --workspace=backend', { stdio: 'inherit' })\""
   },
   "devDependencies": {
     "@playwright/test": "^1.49.1",
